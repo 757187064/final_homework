@@ -1,0 +1,22 @@
+.DS_Store
+__pycache__/
+*.py[cod]
+.pytest_cache/
+.mypy_cache/
+.ruff_cache/
+.venv/
+venv/
+
+# Kaggle/本地大数据与训练产物不要提交到仓库
+data/raw/
+data/processed/
+outputs/
+checkpoints/
+*.pth
+*.pt
+*.ckpt
+
+# 常见报告导出中间文件
+*.aux
+*.log
+*.out

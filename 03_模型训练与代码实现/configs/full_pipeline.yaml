@@ -1,0 +1,42 @@
+experiment:
+  name: full_pipeline_unet_resnet34
+  output_dir: outputs/full_pipeline_unet_resnet34
+  seed: 42
+
+data:
+  root: data/raw
+  train_csv: train.csv
+  sample_submission: sample_submission.csv
+  train_images: train_images
+  test_images: test_images
+  raw_height: 256
+  raw_width: 1600
+  image_height: 256
+  image_width: 1600
+  val_ratio: 0.2
+  num_workers: 2
+  max_train_samples: null
+  max_val_samples: null
+
+model:
+  architecture: unet
+  encoder_name: resnet34
+  encoder_weights: imagenet
+  in_channels: 3
+  classes: 4
+
+train:
+  epochs: 25
+  batch_size: 8
+  learning_rate: 0.0003
+  weight_decay: 0.000001
+  threshold: 0.5
+  use_amp: true
+  use_scheduler: true
+  augmentation: strong
+  save_val_visuals: true
+  val_visuals_count: 16
+
+loss:
+  bce_weight: 0.4
+  dice_weight: 0.6
