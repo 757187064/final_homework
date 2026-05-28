@@ -13,6 +13,7 @@ data:
   raw_width: 1600
   image_height: 256
   image_width: 1600
+  include_empty_images: true
   val_ratio: 0.2
   num_workers: 2
   max_train_samples: null

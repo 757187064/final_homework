@@ -1,7 +1,11 @@
 """数据读取、标注整理与 Dataset。
 
-Severstal 的 ``train.csv`` 每一行是一个 ``ImageId_ClassId`` 和一个 RLE。
-本模块会把它整理成“一张图片一行、4 个类别各一列”的格式，便于训练多通道分割模型。
+Severstal 的标注常见两种格式：
+- Kaggle 原始/提交样例风格：``ImageId_ClassId`` + ``EncodedPixels``；
+- 已拆分风格：``ImageId`` + ``ClassId`` + ``EncodedPixels``。
+
+本模块会把它们统一整理成“一张图片一行、4 个类别各一列”的格式，
+便于训练多通道分割模型。
 """
 
 from __future__ import annotations
@@ -23,7 +27,44 @@ def parse_image_class_id(value: str) -> tuple[str, int]:
     return image_id, int(class_id)
 
 
-def prepare_train_dataframe(csv_path: str | Path) -> pd.DataFrame:
+def _normalize_train_columns(raw: pd.DataFrame) -> pd.DataFrame:
+    """兼容两种 train.csv 格式，统一得到 image_id/class_id/EncodedPixels。"""
+    if "ImageId_ClassId" in raw.columns and "EncodedPixels" in raw.columns:
+        parsed = raw["ImageId_ClassId"].apply(parse_image_class_id)
+        return raw.assign(
+            image_id=parsed.apply(lambda x: x[0]),
+            class_id=parsed.apply(lambda x: x[1]),
+        )
+
+    required = {"ImageId", "ClassId", "EncodedPixels"}
+    if required.issubset(raw.columns):
+        return raw.assign(
+            image_id=raw["ImageId"].astype(str),
+            class_id=raw["ClassId"].astype(int),
+        )
+
+    raise ValueError(
+        "train.csv 必须包含 ImageId_ClassId + EncodedPixels，"
+        "或 ImageId + ClassId + EncodedPixels"
+    )
+
+
+def _list_image_ids(image_dir: str | Path | None) -> list[str]:
+    """列出图片目录中的图片文件名，用于补充无缺陷空 Mask 样本。"""
+    if image_dir is None:
+        return []
+    image_path = Path(image_dir)
+    if not image_path.exists():
+        return []
+    suffixes = {".jpg", ".jpeg", ".png"}
+    return sorted(path.name for path in image_path.iterdir() if path.suffix.lower() in suffixes)
+
+
+def prepare_train_dataframe(
+    csv_path: str | Path,
+    image_dir: str | Path | None = None,
+    include_empty_images: bool = True,
+) -> pd.DataFrame:
     """把原始 train.csv 聚合成训练用 DataFrame。
 
     返回列：
@@ -31,15 +72,7 @@ def prepare_train_dataframe(csv_path: str | Path) -> pd.DataFrame:
     - ``class_1`` ~ ``class_4``：每类缺陷对应的 RLE；
     - ``has_defect``：是否至少有一个类别存在缺陷。
     """
-    raw = pd.read_csv(csv_path)
-    if "ImageId_ClassId" not in raw.columns or "EncodedPixels" not in raw.columns:
-        raise ValueError("train.csv 必须包含 ImageId_ClassId 和 EncodedPixels 两列")
-
-    parsed = raw["ImageId_ClassId"].apply(parse_image_class_id)
-    raw = raw.assign(
-        image_id=parsed.apply(lambda x: x[0]),
-        class_id=parsed.apply(lambda x: x[1]),
-    )
+    raw = _normalize_train_columns(pd.read_csv(csv_path))
 
     table = raw.pivot(index="image_id", columns="class_id", values="EncodedPixels")
     table = table.rename(columns={i: f"class_{i}" for i in range(1, 5)})
@@ -47,6 +80,15 @@ def prepare_train_dataframe(csv_path: str | Path) -> pd.DataFrame:
         if column not in table.columns:
             table[column] = np.nan
     table = table[CLASS_COLUMNS].reset_index()
+
+    if include_empty_images:
+        all_image_ids = _list_image_ids(image_dir)
+        if all_image_ids:
+            table = (
+                pd.DataFrame({"image_id": all_image_ids})
+                .merge(table, on="image_id", how="left")
+            )
+
     # Kaggle 原始空标注通常会被 pandas 读成 NaN；这里也兼容空字符串。
     defect_flags = table[CLASS_COLUMNS].apply(lambda column: column.map(lambda x: not is_empty_rle(x)))
     table["has_defect"] = defect_flags.any(axis=1).astype(int)

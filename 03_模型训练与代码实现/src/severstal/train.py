@@ -32,7 +32,17 @@ def build_loaders(config: dict[str, Any]) -> tuple[DataLoader, DataLoader]:
     train_csv = resolve_data_path(data_cfg["root"], data_cfg["train_csv"])
     train_image_dir = resolve_data_path(data_cfg["root"], data_cfg["train_images"])
 
-    dataframe = prepare_train_dataframe(train_csv)
+    dataframe = prepare_train_dataframe(
+        train_csv,
+        image_dir=train_image_dir,
+        include_empty_images=bool(data_cfg.get("include_empty_images", True)),
+    )
+    print(
+        "数据统计："
+        f"total={len(dataframe)} "
+        f"defect={int(dataframe['has_defect'].sum())} "
+        f"empty={int((1 - dataframe['has_defect']).sum())}"
+    )
     train_df, val_df = split_train_val(
         dataframe,
         val_ratio=float(data_cfg["val_ratio"]),
