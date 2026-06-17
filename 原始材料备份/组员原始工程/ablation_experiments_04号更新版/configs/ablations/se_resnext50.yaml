@@ -1,0 +1,41 @@
+experiment:
+  name: unet_se_resnext50
+  output_dir: deep_learing_final/ablation_se_resnext50
+  seed: 42
+
+data:
+  root: /kaggle/input/severstal-steel-defect-detection
+  train_csv: train.csv
+  sample_submission: sample_submission.csv
+  train_images: train_images
+  test_images: test_images
+  raw_height: 256
+  raw_width: 1600
+  image_height: 256
+  image_width: 1600
+  include_empty_images: true
+  val_ratio: 0.2
+  num_workers: 2
+
+model:
+  architecture: unet
+  encoder_name: se_resnext50_32x4d
+  encoder_weights: imagenet
+  in_channels: 3
+  classes: 4
+
+train:
+  epochs: 25
+  batch_size: 6
+  learning_rate: 0.0003
+  weight_decay: 0.000001
+  threshold: 0.5
+  use_amp: true
+  use_scheduler: true
+  augmentation: strong
+  save_val_visuals: true
+  val_visuals_count: 12
+
+loss:
+  bce_weight: 0.5
+  dice_weight: 0.5
